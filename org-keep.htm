@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mis Notas</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/masonry/4.2.2/masonry.pkgd.min.js"></script>
+<!-- <script src="./org-parser.js"></script> -->
+ <script src="./bundle.js"></script>
     <style>
         * {
             margin: 0;
@@ -193,6 +195,7 @@
             z-index: 2000;
             justify-content: center;
             align-items: center;
+            padding: 20px;
         }
 
         .modal-overlay.active {
@@ -203,11 +206,12 @@
             background: #3c4043;
             border: 1px solid #5f6368;
             border-radius: 8px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 80vh;
+            max-width: 800px;
+            width: 100%;
+            max-height: 90vh;
             overflow-y: auto;
             animation: modalAppear 0.2s ease;
+            padding: 24px;
         }
 
         @keyframes modalAppear {
@@ -219,6 +223,90 @@
                 opacity: 1;
                 transform: scale(1);
             }
+        }
+
+        /* Estilos para contenido Org renderizado */
+        .org-content h1, .org-content h2, .org-content h3, .org-content h4 {
+            color: #8ab4f8;
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+        }
+
+        .org-content h1 { font-size: 1.8em; }
+        .org-content h2 { font-size: 1.5em; }
+        .org-content h3 { font-size: 1.3em; }
+        .org-content h4 { font-size: 1.1em; }
+
+        .org-content p {
+            margin-bottom: 1em;
+            line-height: 1.6;
+        }
+
+        .org-content pre {
+            background: #202124;
+            padding: 12px;
+            border-radius: 4px;
+            overflow-x: auto;
+            border: 1px solid #5f6368;
+            margin: 1em 0;
+        }
+
+        .org-content code {
+            background: #202124;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #9aa0a6;
+        }
+
+        .org-content ul, .org-content ol {
+            margin-left: 1.5em;
+            margin-bottom: 1em;
+        }
+
+        .org-content li {
+            margin-bottom: 0.5em;
+            color: #e8eaed;
+        }
+
+        .org-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1em 0;
+        }
+
+        .org-content table th,
+        .org-content table td {
+            border: 1px solid #5f6368;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .org-content table th {
+            background: #202124;
+            color: #8ab4f8;
+        }
+
+        .org-content a {
+            color: #8ab4f8;
+            text-decoration: none;
+        }
+
+        .org-content a:hover {
+            text-decoration: underline;
+        }
+
+        .org-content blockquote {
+            border-left: 3px solid #8ab4f8;
+            padding-left: 1em;
+            margin: 1em 0;
+            color: #9aa0a6;
+        }
+
+        .loading {
+            color: #8ab4f8;
+            text-align: center;
+            padding: 20px;
         }
 
         @media (max-width: 768px) {
@@ -271,7 +359,42 @@
         let orgRoamWs = null;
         let masonry = null;
         let orgRoamNodes = [];
-        const DEMO_MODE = false; // Cambiar a false para datos reales
+        const DEMO_MODE = false;
+
+        // Parsear contenido Org a HTML usando bundle
+ 
+// PARA ORG-PARSER
+
+// function parseOrgContent(orgContent) {
+//     return window.parseOrgToHTML(orgContent);
+// }
+
+// PARA BUNDLE UNIORG
+async function parseOrgContent(orgContent) {
+    return await window.parseOrgToHTML(orgContent);
+}
+
+
+
+        // Solicitar contenido de archivo específico
+        function requestFileContent(filePath, nodeId) {
+            if (!orgRoamWs || orgRoamWs.readyState !== WebSocket.OPEN) {
+                console.error('WebSocket no está conectado');
+                return;
+            }
+
+            // Enviar mensaje a Emacs solicitando el contenido
+      orgRoamWs.send(JSON.stringify({
+    command: 'request-file-content',  // ← Cambiar a "command"
+    data: {
+        file: filePath,
+        nodeId: nodeId
+    }
+}));
+
+
+
+        }
 
         // WebSocket connection to org-roam-ui
         function connectToOrgRoam() {
@@ -282,13 +405,25 @@
                     console.log('Conectado a org-roam-ui');
                 };
 
-                orgRoamWs.onmessage = function(event) {
+                orgRoamWs.onmessage = async function(event) {
                     const message = JSON.parse(event.data);
                     
                     if (message.type === 'graphdata') {
                         console.log('Datos recibidos de org-roam:', message.data);
                         orgRoamNodes = message.data.nodes || [];
                         renderNotesFromOrgRoam();
+                    } else if (message.type === 'file-content') {
+                        // Recibir contenido del archivo y renderizarlo
+                        const modal = document.getElementById('modalNote');
+                        modal.innerHTML = '<div class="loading">Renderizando...</div>';
+                        
+                        const htmlContent = await parseOrgContent(message.content);
+                        modal.innerHTML = `
+                            <div class="org-content">
+                                <h1>${message.title || 'Sin título'}</h1>
+                                ${htmlContent}
+                            </div>
+                        `;
                     }
                 };
 
@@ -308,95 +443,46 @@
         }
 
         // Renderizar notas desde datos de org-roam
-        // function renderNotesFromOrgRoam() {
-        //     const grid = document.getElementById('masonryGrid');
-        //     grid.innerHTML = ''; // Limpiar contenido existente
+        function renderNotesFromOrgRoam() {
+            const grid = document.getElementById('masonryGrid');
+            grid.innerHTML = '';
 
-        //     if (orgRoamNodes.length === 0) {
-        //         grid.innerHTML = '<div class="masonry-item"><div class="note-content"><div class="note-title">No hay notas</div><div class="note-text">No se encontraron notas de org-roam</div></div></div>';
-        //         if (masonry) masonry.layout();
-        //         return;
-        //     }
+            if (orgRoamNodes.length === 0) {
+                grid.innerHTML = '<div class="masonry-item"><div class="note-content"><div class="note-title">No hay notas</div><div class="note-text">No se encontraron notas de org-roam</div></div></div>';
+                if (masonry) masonry.layout();
+                return;
+            }
 
-        //     orgRoamNodes.forEach((node, index) => {
-        //         const noteDiv = document.createElement('div');
-        //         noteDiv.className = 'masonry-item';
+            orgRoamNodes.forEach((node, index) => {
+                const noteDiv = document.createElement('div');
+                noteDiv.className = 'masonry-item';
+                noteDiv.dataset.file = node.file;
+                noteDiv.dataset.nodeId = node.id;
                 
-        //         // Alternar colores para variedad visual
-        //         const colors = ['', 'note-color-yellow', 'note-color-green', 'note-color-blue', 'note-color-red', 'note-color-purple'];
-        //         if (index % 6 !== 0) {
-        //             noteDiv.className += ' ' + colors[index % 6];
-        //         }
+                const colors = ['', 'note-color-yellow', 'note-color-green', 'note-color-blue', 'note-color-red', 'note-color-purple'];
+                if (index % 6 !== 0) {
+                    noteDiv.className += ' ' + colors[index % 6];
+                }
 
-        //         // Mostrar datos raw de org-roam
-        //         noteDiv.innerHTML = `
-        //             <div class="note-content">
-        //                 <div class="note-title">${node.title || 'Sin título'}</div>
-        //                 <div class="note-text">
-        //                     <strong>ID:</strong> ${node.id}<br>
-        //                     <strong>File:</strong> ${node.file || 'N/A'}<br>
-        //                     <strong>Level:</strong> ${node.level || 0}<br>
-        //                     <strong>Tags:</strong> ${node.tags || 'Sin tags'}<br>
-        //                     <strong>Properties:</strong> ${JSON.stringify(node.properties || {})}
-        //                 </div>
-        //             </div>
-        //         `;
+                const title = DEMO_MODE ? `Note ${index + 1}` : (node.title || 'Sin título');
+                const id = DEMO_MODE ? `demo-id-${index + 1}` : node.id;
+                const file = DEMO_MODE ? `/notes/note${index + 1}.org` : (node.file || 'N/A');
+                const tags = DEMO_MODE ? 'example, demo' : (node.tags || 'Sin tags');
 
-        //         grid.appendChild(noteDiv);
-        //     });
+                noteDiv.innerHTML = `
+                    <div class="note-content">
+                        <div class="note-title">${title}</div>
+                        <div class="note-text">
+                            <strong>Tags:</strong> ${tags}
+                        </div>
+                    </div>
+                `;
 
-        //     // Actualizar masonry y eventos
-        //     updateMasonryAndEvents();
-        // }
+                grid.appendChild(noteDiv);
+            });
 
-
-        // Renderizar notas desde datos de org-roam
-function renderNotesFromOrgRoam() {
-    const grid = document.getElementById('masonryGrid');
-    grid.innerHTML = ''; // Limpiar contenido existente
-
-    if (orgRoamNodes.length === 0) {
-        grid.innerHTML = '<div class="masonry-item"><div class="note-content"><div class="note-title">No hay notas</div><div class="note-text">No se encontraron notas de org-roam</div></div></div>';
-        if (masonry) masonry.layout();
-        return;
-    }
-
-    orgRoamNodes.forEach((node, index) => {
-        const noteDiv = document.createElement('div');
-        noteDiv.className = 'masonry-item';
-        
-        // Alternar colores para variedad visual
-        const colors = ['', 'note-color-yellow', 'note-color-green', 'note-color-blue', 'note-color-red', 'note-color-purple'];
-        if (index % 6 !== 0) {
-            noteDiv.className += ' ' + colors[index % 6];
+            updateMasonryAndEvents();
         }
-
-        // Datos ofuscados o reales según DEMO_MODE
-        const title = DEMO_MODE ? `Note ${index + 1}` : (node.title || 'Sin título');
-        const id = DEMO_MODE ? `demo-id-${index + 1}` : node.id;
-        const file = DEMO_MODE ? `/notes/note${index + 1}.org` : (node.file || 'N/A');
-        const tags = DEMO_MODE ? 'example, demo' : (node.tags || 'Sin tags');
-
-        // Mostrar datos raw de org-roam
-        noteDiv.innerHTML = `
-            <div class="note-content">
-                <div class="note-title">${title}</div>
-                <div class="note-text">
-                    <strong>ID:</strong> ${id}<br>
-                    <strong>File:</strong> ${file}<br>
-                    <strong>Level:</strong> ${node.level || 0}<br>
-                    <strong>Tags:</strong> ${tags}<br>
-                    <strong>Properties:</strong> ${JSON.stringify(node.properties || {})}
-                </div>
-            </div>
-        `;
-
-        grid.appendChild(noteDiv);
-    });
-
-    // Actualizar masonry y eventos
-    updateMasonryAndEvents();
-}
 
         // Actualizar masonry layout y eventos de click
         function updateMasonryAndEvents() {
@@ -408,7 +494,6 @@ function renderNotesFromOrgRoam() {
                     initializeMasonry();
                 }
 
-                // Reagregar eventos de click para las nuevas notas
                 const notes = document.querySelectorAll('.masonry-item');
                 notes.forEach(note => {
                     note.addEventListener('click', openNoteModal);
@@ -433,19 +518,21 @@ function renderNotesFromOrgRoam() {
             const modal = document.getElementById('modalOverlay');
             const modalNote = document.getElementById('modalNote');
             
-            modalNote.innerHTML = this.innerHTML;
-            modalNote.className = 'modal-note ' + this.className.replace('masonry-item', '').trim();
+            const filePath = this.dataset.file;
+            const nodeId = this.dataset.nodeId;
+            
+            modalNote.innerHTML = '<div class="loading">Cargando nota...</div>';
             modal.classList.add('active');
+
+            // Solicitar contenido del archivo
+            requestFileContent(filePath, nodeId);
         }
 
         // Inicialización cuando carga la página
         document.addEventListener('DOMContentLoaded', function() {
             initializeMasonry();
-            
-            // Intentar conectar a org-roam
             connectToOrgRoam();
 
-            // Configurar buscador
             const searchBox = document.querySelector('.search-box');
             searchBox.addEventListener('input', function() {
                 const searchTerm = this.value.toLowerCase();
@@ -465,18 +552,11 @@ function renderNotesFromOrgRoam() {
                 }, 100);
             });
 
-            // Configurar modal
             const modal = document.getElementById('modalOverlay');
-            const modalNote = document.getElementById('modalNote');
-            
             modal.addEventListener('click', function(e) {
                 if (e.target === modal) {
                     modal.classList.remove('active');
                 }
-            });
-
-            modalNote.addEventListener('click', function() {
-                modal.classList.remove('active');
             });
         });
     </script>

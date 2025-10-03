@@ -25,14 +25,25 @@ Alternative frontend for org-roam that displays notes as cards organized in a re
 
 1. Download or clone this repository
 
-2. In Emacs, start org-roam-ui:
+2. **Load the extension in Emacs:**
+```elisp
+   (load-file "/path/to/org-keep.el")
+```
+
+
+
+3. **In Emacs, start org-roam-ui:**
 ```elisp
 M-x org-roam-ui-mode
 ```
 
-3. Open `index.html` in your browser (double-click the file)
+3. **Open `org-keep.html` in your browser**
+
+ (double-click the file)
 
 The interface will automatically connect to org-roam via WebSocket.
+
+
 
 ### Functionality
 
